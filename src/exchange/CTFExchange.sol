@@ -14,7 +14,7 @@ import { AssetOperations } from "./mixins/AssetOperations.sol";
 
 import { BaseExchange } from "./BaseExchange.sol";
 
-import { Order } from "./libraries/OrderStructs.sol";
+import { Order, FeeFill } from "./libraries/OrderStructs.sol";
 
 /// @title CTF Exchange
 /// @notice Implements logic for trading CTF assets
@@ -86,6 +86,17 @@ contract CTFExchange is
         uint256[] memory makerFillAmounts
     ) external nonReentrant onlyOperator notPaused {
         _matchOrders(takerOrder, makerOrders, takerFillAmount, makerFillAmounts);
+    }
+
+    /// @notice Matches orders with explicit share quantity, execution price, and actual fee (v1.1.0)
+    /// @dev Collateral-only fees; fee f is operator-supplied within DeltaCap. Legacy matchOrders unchanged.
+    function matchOrdersWithFees(
+        Order memory takerOrder,
+        Order[] memory makerOrders,
+        FeeFill memory takerFill,
+        FeeFill[] memory makerFills
+    ) external nonReentrant onlyOperator notPaused {
+        _matchOrdersWithFees(takerOrder, makerOrders, takerFill, makerFills);
     }
 
     /*//////////////////////////////////////////////////////////////
