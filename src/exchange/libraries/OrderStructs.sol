@@ -67,3 +67,27 @@ struct OrderStatus {
     bool isFilledOrCancelled;
     uint256 remaining;
 }
+
+/// @notice Per-fill amounts for v1.1.0 gross-budget fee settlement
+struct FeeFill {
+    /// @notice Outcome-share atoms filled
+    uint256 q;
+    /// @notice Execution price in [1, ONE-1]
+    uint256 pi;
+    /// @notice Actual fee in collateral atoms (operator-supplied, capped by DeltaCap)
+    uint256 f;
+}
+
+/// @notice Persistent fill state for v1.1.0 fee-aware matching
+struct OrderFillStateV11 {
+    bool initialized;
+    bool isFilledOrCancelled;
+    /// @dev BUY: cumulative gross collateral debit; SELL: cumulative gross proceeds
+    uint256 BUsed;
+    /// @dev BUY: cumulative shares delivered
+    uint256 delivered;
+    /// @dev SELL: cumulative shares sold
+    uint256 filledShares;
+    /// @dev Cumulative fee-basis numerator H
+    uint256 H;
+}
