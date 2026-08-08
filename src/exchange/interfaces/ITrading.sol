@@ -17,6 +17,8 @@ interface ITradingEE {
     error MismatchedFillQuantity();
     error MismatchedFillPrice();
     error UnsupportedMatchType();
+    error RepeatedOrderHash();
+    error LegacyTradingDisabled();
 
     /// @notice Emitted when an order is cancelled
     event OrderCancelled(bytes32 indexed orderHash);
@@ -57,6 +59,8 @@ interface ITradingEE {
         uint256 deliveredOrFilled,
         uint256 H
     );
+
+    event V11OnlyEnabled();
 }
 
 interface ITrading is ITradingEE {

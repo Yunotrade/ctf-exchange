@@ -3,6 +3,7 @@ pragma solidity <0.9.0;
 
 import { BaseExchangeTest } from "exchange/test/BaseExchangeTest.sol";
 
+import { IFeesEE } from "exchange/interfaces/IFees.sol";
 import { Order, Side, FeeFill } from "exchange/libraries/OrderStructs.sol";
 import { IERC20 } from "openzeppelin-contracts/token/ERC20/IERC20.sol";
 import { IERC1155 } from "openzeppelin-contracts/token/ERC1155/IERC1155.sol";
@@ -14,12 +15,17 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
     uint256 internal constant F = 4_000_000;
     uint256 internal constant N = 40_000_000;
     uint256 internal constant R_BPS = 1000;
+    address internal feeRecipient = address(0xFEE);
 
     function setUp() public override {
         super.setUp();
         _fundCollateral(bob, 200_000_000);
         _mintTestTokens(carla, address(exchange), 200_000_000);
         _fundCollateral(carla, 200_000_000);
+        vm.startPrank(admin);
+        exchange.setFeeRecipient(feeRecipient);
+        exchange.enableV11Only();
+        vm.stopPrank();
     }
 
     function _fundCollateral(address who, uint256 amount) internal {
@@ -28,6 +34,14 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
         IERC20(address(usdc)).approve(address(exchange), type(uint256).max);
         vm.prank(who);
         IERC1155(address(ctf)).setApprovalForAll(address(exchange), true);
+    }
+
+    function testFeeRecipientCannotBeReassigned() public {
+        vm.prank(admin);
+        vm.expectRevert(IFeesEE.FeeRecipientAlreadySet.selector);
+        exchange.setFeeRecipient(address(0xBEEF));
+
+        assertEq(exchange.getFeeRecipient(), feeRecipient);
     }
 
     function testComplementaryBuySellAtCap() public {
@@ -42,7 +56,8 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
 
         uint256 bobColBefore = usdc.balanceOf(bob);
         uint256 carlaColBefore = usdc.balanceOf(carla);
-        uint256 adminColBefore = usdc.balanceOf(admin);
+        uint256 operatorColBefore = usdc.balanceOf(admin);
+        uint256 feeRecipientColBefore = usdc.balanceOf(feeRecipient);
         uint256 bobYesBefore = getCTFBalance(bob, yes);
         uint256 carlaYesBefore = getCTFBalance(carla, yes);
 
@@ -53,7 +68,8 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
         assertEq(getCTFBalance(bob, yes), bobYesBefore + Q);
         assertEq(usdc.balanceOf(carla), carlaColBefore + (N - F));
         assertEq(getCTFBalance(carla, yes), carlaYesBefore - Q);
-        assertEq(usdc.balanceOf(admin), adminColBefore + 2 * F);
+        assertEq(usdc.balanceOf(admin), operatorColBefore);
+        assertEq(usdc.balanceOf(feeRecipient), feeRecipientColBefore + 2 * F);
         assertEq(usdc.balanceOf(address(exchange)), 0);
         assertEq(getCTFBalance(address(exchange), yes), 0);
 
@@ -81,7 +97,8 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
 
         uint256 bobColBefore = usdc.balanceOf(bob);
         uint256 carlaColBefore = usdc.balanceOf(carla);
-        uint256 adminColBefore = usdc.balanceOf(admin);
+        uint256 operatorColBefore = usdc.balanceOf(admin);
+        uint256 feeRecipientColBefore = usdc.balanceOf(feeRecipient);
         uint256 bobYesBefore = getCTFBalance(bob, yes);
         uint256 carlaYesBefore = getCTFBalance(carla, yes);
 
@@ -90,7 +107,8 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
 
         assertEq(usdc.balanceOf(bob), bobColBefore - (N + F));
         assertEq(usdc.balanceOf(carla), carlaColBefore + N - F);
-        assertEq(usdc.balanceOf(admin), adminColBefore + 2 * F);
+        assertEq(usdc.balanceOf(admin), operatorColBefore);
+        assertEq(usdc.balanceOf(feeRecipient), feeRecipientColBefore + 2 * F);
         assertEq(getCTFBalance(bob, yes), bobYesBefore + Q);
         assertEq(getCTFBalance(carla, yes), carlaYesBefore - Q);
         assertEq(usdc.balanceOf(address(exchange)), 0);
@@ -119,7 +137,8 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
 
         uint256 bobColBefore = usdc.balanceOf(bob);
         uint256 carlaColBefore = usdc.balanceOf(carla);
-        uint256 adminColBefore = usdc.balanceOf(admin);
+        uint256 operatorColBefore = usdc.balanceOf(admin);
+        uint256 feeRecipientColBefore = usdc.balanceOf(feeRecipient);
         uint256 bobYesBefore = getCTFBalance(bob, yes);
         uint256 carlaNoBefore = getCTFBalance(carla, no);
 
@@ -128,7 +147,8 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
 
         assertEq(usdc.balanceOf(bob), bobColBefore - (N + F));
         assertEq(usdc.balanceOf(carla), carlaColBefore - ((Q - N) + F));
-        assertEq(usdc.balanceOf(admin), adminColBefore + 2 * F);
+        assertEq(usdc.balanceOf(admin), operatorColBefore);
+        assertEq(usdc.balanceOf(feeRecipient), feeRecipientColBefore + 2 * F);
         assertEq(getCTFBalance(bob, yes), bobYesBefore + Q);
         assertEq(getCTFBalance(carla, no), carlaNoBefore + Q);
         assertEq(usdc.balanceOf(address(exchange)), 0);
@@ -156,7 +176,8 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
 
         uint256 bobColBefore = usdc.balanceOf(bob);
         uint256 carlaColBefore = usdc.balanceOf(carla);
-        uint256 adminColBefore = usdc.balanceOf(admin);
+        uint256 operatorColBefore = usdc.balanceOf(admin);
+        uint256 feeRecipientColBefore = usdc.balanceOf(feeRecipient);
         uint256 bobYesBefore = getCTFBalance(bob, yes);
         uint256 carlaNoBefore = getCTFBalance(carla, no);
 
@@ -165,7 +186,8 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
 
         assertEq(usdc.balanceOf(bob), bobColBefore + N - F);
         assertEq(usdc.balanceOf(carla), carlaColBefore + (Q - N) - F);
-        assertEq(usdc.balanceOf(admin), adminColBefore + 2 * F);
+        assertEq(usdc.balanceOf(admin), operatorColBefore);
+        assertEq(usdc.balanceOf(feeRecipient), feeRecipientColBefore + 2 * F);
         assertEq(getCTFBalance(bob, yes), bobYesBefore - Q);
         assertEq(getCTFBalance(carla, no), carlaNoBefore - Q);
         assertEq(usdc.balanceOf(address(exchange)), 0);
@@ -183,6 +205,40 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
         vm.prank(admin);
         vm.expectRevert(LengthMismatch.selector);
         exchange.matchOrdersWithFees(buy, makers, FeeFill({ q: Q, pi: PI, f: F }), makerFills);
+    }
+
+    function testRepeatedMakerHashRevertsBeforeMovingFunds() public {
+        uint256 makerQ = Q / 2;
+        uint256 makerN = N / 2;
+        uint256 makerF = F / 2;
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N + F, Q, R_BPS, Side.BUY);
+        Order memory sell = _createAndSignOrderWithFee(carlaPK, yes, makerQ, makerN, R_BPS, Side.SELL);
+        Order[] memory makers = new Order[](2);
+        makers[0] = sell;
+        makers[1] = sell;
+        FeeFill[] memory makerFills = new FeeFill[](2);
+        makerFills[0] = FeeFill({ q: makerQ, pi: PI, f: makerF });
+        makerFills[1] = FeeFill({ q: makerQ, pi: PI, f: makerF });
+
+        uint256 bobColBefore = usdc.balanceOf(bob);
+        uint256 carlaColBefore = usdc.balanceOf(carla);
+        vm.prank(admin);
+        vm.expectRevert(RepeatedOrderHash.selector);
+        exchange.matchOrdersWithFees(buy, makers, FeeFill({ q: Q, pi: PI, f: F }), makerFills);
+
+        assertEq(usdc.balanceOf(bob), bobColBefore);
+        assertEq(usdc.balanceOf(carla), carlaColBefore);
+        assertEq(usdc.balanceOf(feeRecipient), 0);
+    }
+
+    function testV11OnlyDisablesLegacyMatchOrders() public {
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N + F, Q, R_BPS, Side.BUY);
+        Order[] memory makers = new Order[](0);
+        uint256[] memory makerFills = new uint256[](0);
+
+        vm.prank(admin);
+        vm.expectRevert(LegacyTradingDisabled.selector);
+        exchange.matchOrders(buy, makers, N, makerFills);
     }
 
     function testEmptyMakerBatchReverts() public {

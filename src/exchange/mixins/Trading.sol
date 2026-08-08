@@ -395,7 +395,10 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
         bytes32 takerHash = hashOrder(takerOrder);
         _validateOrder(takerHash, takerOrder);
 
-        _validateMakerOrdersWithFees(takerOrder, takerFill, makerOrders, makerFills);
+        _validateMakerOrdersWithFees(takerHash, takerOrder, takerFill, makerOrders, makerFills);
+
+        address feeRecipient = getFeeRecipient();
+        if (feeRecipient == address(0)) revert InvalidFeeRecipient();
 
         uint256 takerNotional = GrossBudgetFeeMath.executionCollateral(takerFill.q, takerFill.pi, 10 ** 18);
         uint256 takerSettlement;
@@ -410,10 +413,11 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
         uint256 makerFees = _fillMakerOrdersWithFees(takerOrder, takerFill, makerOrders, makerFills);
 
         if (takerOrder.side == Side.SELL) _transfer(address(this), takerOrder.maker, 0, takerSettlement);
-        _chargeFee(address(this), msg.sender, 0, takerFill.f + makerFees);
+        _chargeFee(address(this), feeRecipient, 0, takerFill.f + makerFees);
     }
 
     function _validateMakerOrdersWithFees(
+        bytes32 takerHash,
         Order memory takerOrder,
         FeeFill memory takerFill,
         Order[] memory makerOrders,
@@ -421,13 +425,23 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
     ) internal view {
         uint256 totalMakerQuantity;
         uint256 length = makerOrders.length;
+        bytes32[] memory makerHashes = new bytes32[](length);
         for (uint256 i = 0; i < length;) {
+            bytes32 makerHash = hashOrder(makerOrders[i]);
+            if (makerHash == takerHash) revert RepeatedOrderHash();
+            for (uint256 j = 0; j < i;) {
+                if (makerHashes[j] == makerHash) revert RepeatedOrderHash();
+                unchecked {
+                    ++j;
+                }
+            }
+            makerHashes[i] = makerHash;
+
             MatchType matchType = _deriveMatchType(takerOrder, makerOrders[i]);
             _validateTakerAndMaker(takerOrder, makerOrders[i], matchType);
             if (takerFill.pi != makerFills[i].pi) revert MismatchedFillPrice();
 
             totalMakerQuantity += makerFills[i].q;
-            bytes32 makerHash = hashOrder(makerOrders[i]);
             _validateOrder(makerHash, makerOrders[i]);
 
             unchecked {
