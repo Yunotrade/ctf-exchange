@@ -19,7 +19,7 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
     /// @notice Mapping of orders to their current status
     mapping(bytes32 => OrderStatus) public orderStatus;
 
-    /// @notice v1.1.0 gross-budget fill state (fee-aware path only)
+    /// @notice v1.1.0 fee-aware fill state (BUY BUsed is notional; transfer is N+f)
     mapping(bytes32 => OrderFillStateV11) public orderFillStateV11;
 
     /// @notice Gets the status of an order
@@ -381,7 +381,7 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
     }
 
     /// @notice Matches orders with explicit (q, pi, f) actual-fee fills (v1.1.0)
-    /// @dev Fees are collateral-only. Legacy matchOrders share-fee path is unchanged.
+    /// @dev BUY makerAmount is fee-exclusive notional; transfer is still N+f. SELL is P-f. Legacy matchOrders unchanged.
     function _matchOrdersWithFees(
         Order memory takerOrder,
         Order[] memory makerOrders,
@@ -579,6 +579,7 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
         if (order.side != Side.BUY) revert UnsupportedMatchType();
         OrderFillStateV11 storage st = orderFillStateV11[orderHash];
         if (st.isFilledOrCancelled) revert OrderFilledOrCancelled();
+        if (fill.q > order.takerAmount - st.delivered) revert ShareOverfill();
 
         GrossBudgetFeeMath.FillResult memory res = GrossBudgetFeeMath.validateBuyFillWithNotional(
             GrossBudgetFeeMath.BuyFillInput({
@@ -597,14 +598,14 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
         );
 
         st.initialized = true;
-        st.BUsed += res.settlement;
+        st.BUsed += res.notional;
         st.delivered += fill.q;
         st.H = res.HAfter;
-        if (st.BUsed == order.makerAmount) st.isFilledOrCancelled = true;
+        if (st.delivered == order.takerAmount) st.isFilledOrCancelled = true;
 
-        // Keep legacy remaining as unused budget for explorability
+        // Keep legacy remaining as unused notional; zero it when the share budget is complete.
         OrderStatus storage legacy = orderStatus[orderHash];
-        legacy.remaining = order.makerAmount - st.BUsed;
+        legacy.remaining = st.isFilledOrCancelled ? 0 : order.makerAmount - st.BUsed;
         if (st.isFilledOrCancelled) legacy.isFilledOrCancelled = true;
 
         emit OrderFilledWithFees(

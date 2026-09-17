@@ -16,8 +16,10 @@ library GrossBudgetFeeMath {
         uint256 f;
         uint256 feeRateBps;
         uint256 S;
+        /// @dev Signed BUY makerAmount: fee-exclusive notional budget N.
         uint256 M;
         uint256 T;
+        /// @dev Cumulative executed notional (not N+f).
         uint256 BUsed;
         uint256 delivered;
         uint256 HPrev;
@@ -94,8 +96,9 @@ library GrossBudgetFeeMath {
         r.dCap = deltaCap(i.HPrev, r.HAfter, i.feeRateBps, i.S);
         require(i.f <= r.dCap, "FeeAboveCap");
         r.settlement = r.notional + i.f;
-        require(r.settlement <= i.M - i.BUsed, "BudgetExceeded");
-        require(i.delivered + i.q >= minOut(i.BUsed + r.settlement, i.T, i.M), "MinOutFailed");
+        // Bet-slip budget is notional-only; fee is pulled on top (settlement = N+f) and capped by dCap.
+        require(r.notional <= i.M - i.BUsed, "BudgetExceeded");
+        require(i.delivered + i.q >= minOut(i.BUsed + r.notional, i.T, i.M), "MinOutFailed");
     }
 
     function validateSellFill(SellFillInput memory i) internal pure returns (FillResult memory r) {
