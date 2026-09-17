@@ -19,6 +19,7 @@ interface ITradingEE {
     error UnsupportedMatchType();
     error RepeatedOrderHash();
     error LegacyTradingDisabled();
+    error ShareOverfill();
 
     /// @notice Emitted when an order is cancelled
     event OrderCancelled(bytes32 indexed orderHash);
@@ -45,7 +46,8 @@ interface ITradingEE {
         uint256 takerAmountFilled
     );
 
-    /// @notice Emitted on a v1.1.0 gross-budget fee fill (collateral fee only)
+    /// @notice Emitted on a v1.1.0 fee fill (collateral fee only).
+    /// @dev BUY `BUsed` is cumulative fee-exclusive notional. SELL `BUsed` is cumulative gross proceeds.
     event OrderFilledWithFees(
         bytes32 indexed orderHash,
         address indexed maker,

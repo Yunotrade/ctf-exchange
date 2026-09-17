@@ -68,7 +68,7 @@ struct OrderStatus {
     uint256 remaining;
 }
 
-/// @notice Per-fill amounts for v1.1.0 gross-budget fee settlement
+/// @notice Per-fill amounts for v1.1.0 fee settlement (unsigned q, pi, f)
 struct FeeFill {
     /// @notice Outcome-share atoms filled
     uint256 q;
@@ -82,7 +82,7 @@ struct FeeFill {
 struct OrderFillStateV11 {
     bool initialized;
     bool isFilledOrCancelled;
-    /// @dev BUY: cumulative gross collateral debit; SELL: cumulative gross proceeds
+    /// @dev BUY: cumulative fee-exclusive notional; SELL: cumulative gross proceeds
     uint256 BUsed;
     /// @dev BUY: cumulative shares delivered
     uint256 delivered;

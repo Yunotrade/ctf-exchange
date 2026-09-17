@@ -45,7 +45,7 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
     }
 
     function testComplementaryBuySellAtCap() public {
-        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N + F, Q, R_BPS, Side.BUY);
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N, Q, R_BPS, Side.BUY);
         Order memory sell = _createAndSignOrderWithFee(carlaPK, yes, Q, N, R_BPS, Side.SELL);
 
         Order[] memory makers = new Order[](1);
@@ -74,7 +74,7 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
         assertEq(getCTFBalance(address(exchange), yes), 0);
 
         bytes32 buyHash = exchange.hashOrder(buy);
-        assertEq(exchange.getOrderFillStateV11(buyHash).BUsed, N + F);
+        assertEq(exchange.getOrderFillStateV11(buyHash).BUsed, N);
         assertEq(exchange.getOrderFillStateV11(buyHash).delivered, Q);
         assertTrue(exchange.getOrderFillStateV11(buyHash).isFilledOrCancelled);
     }
@@ -83,7 +83,7 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
         uint256 makerQ = Q / 2;
         uint256 makerN = N / 2;
         uint256 makerF = F / 2;
-        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N + F, Q, R_BPS, Side.BUY);
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N, Q, R_BPS, Side.BUY);
         Order memory sellA = _createAndSignOrderWithFee(carlaPK, yes, makerQ, makerN, R_BPS, Side.SELL);
         Order memory sellB =
             _resignWithSalt(_createAndSignOrderWithFee(carlaPK, yes, makerQ, makerN, R_BPS, Side.SELL), carlaPK, 2);
@@ -122,10 +122,10 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
         uint256 makerQ = Q / 2;
         uint256 makerN = (Q - N) / 2;
         uint256 makerF = F / 2;
-        Order memory yesBuy = _createAndSignOrderWithFee(bobPK, yes, N + F, Q, R_BPS, Side.BUY);
-        Order memory noBuyA = _createAndSignOrderWithFee(carlaPK, no, makerN + makerF, makerQ, R_BPS, Side.BUY);
+        Order memory yesBuy = _createAndSignOrderWithFee(bobPK, yes, N, Q, R_BPS, Side.BUY);
+        Order memory noBuyA = _createAndSignOrderWithFee(carlaPK, no, makerN, makerQ, R_BPS, Side.BUY);
         Order memory noBuyB = _resignWithSalt(
-            _createAndSignOrderWithFee(carlaPK, no, makerN + makerF, makerQ, R_BPS, Side.BUY), carlaPK, 2
+            _createAndSignOrderWithFee(carlaPK, no, makerN, makerQ, R_BPS, Side.BUY), carlaPK, 2
         );
 
         Order[] memory makers = new Order[](2);
@@ -196,7 +196,7 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
     }
 
     function testMakerLengthMismatchReverts() public {
-        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N + F, Q, R_BPS, Side.BUY);
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N, Q, R_BPS, Side.BUY);
         Order memory sell = _createAndSignOrderWithFee(carlaPK, yes, Q, N, R_BPS, Side.SELL);
         Order[] memory makers = new Order[](1);
         makers[0] = sell;
@@ -211,7 +211,7 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
         uint256 makerQ = Q / 2;
         uint256 makerN = N / 2;
         uint256 makerF = F / 2;
-        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N + F, Q, R_BPS, Side.BUY);
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N, Q, R_BPS, Side.BUY);
         Order memory sell = _createAndSignOrderWithFee(carlaPK, yes, makerQ, makerN, R_BPS, Side.SELL);
         Order[] memory makers = new Order[](2);
         makers[0] = sell;
@@ -232,7 +232,7 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
     }
 
     function testV11OnlyDisablesLegacyMatchOrders() public {
-        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N + F, Q, R_BPS, Side.BUY);
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N, Q, R_BPS, Side.BUY);
         Order[] memory makers = new Order[](0);
         uint256[] memory makerFills = new uint256[](0);
 
@@ -242,7 +242,7 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
     }
 
     function testEmptyMakerBatchReverts() public {
-        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N + F, Q, R_BPS, Side.BUY);
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N, Q, R_BPS, Side.BUY);
         Order[] memory makers = new Order[](0);
         FeeFill[] memory makerFills = new FeeFill[](0);
 
@@ -283,7 +283,7 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
     }
 
     function testMinOutFailedReverts() public {
-        // Signed all-in 0.40 both sides (crossing); operator supplies worse pi=0.50
+        // Signed notional 0.40 both sides (crossing); operator supplies worse pi=0.50
         Order memory buy = _createAndSignOrderWithFee(bobPK, yes, 40_000_000, 100_000_000, 0, Side.BUY);
         Order memory sell = _createAndSignOrderWithFee(carlaPK, yes, 100_000_000, 40_000_000, 0, Side.SELL);
         Order[] memory makers = new Order[](1);
@@ -318,8 +318,8 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
     }
 
     function testMintComplementConservation() public {
-        Order memory yesBuy = _createAndSignOrderWithFee(bobPK, yes, N + F, Q, R_BPS, Side.BUY);
-        Order memory noBuy = _createAndSignOrderWithFee(carlaPK, no, (Q - N) + F, Q, R_BPS, Side.BUY);
+        Order memory yesBuy = _createAndSignOrderWithFee(bobPK, yes, N, Q, R_BPS, Side.BUY);
+        Order memory noBuy = _createAndSignOrderWithFee(carlaPK, no, Q - N, Q, R_BPS, Side.BUY);
 
         Order[] memory makers = new Order[](1);
         makers[0] = noBuy;
@@ -338,6 +338,73 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
         assertEq(getCTFBalance(bob, yes), Q);
         assertEq(getCTFBalance(carla, no), carlaNoBefore + Q);
         assertEq(usdc.balanceOf(address(exchange)), 0);
+    }
+
+    function testBuyFeeOnTopOfSignedNotional() public {
+        deal(address(usdc), bob, N + F);
+        vm.prank(bob);
+        IERC20(address(usdc)).approve(address(exchange), type(uint256).max);
+
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N, Q, R_BPS, Side.BUY);
+        Order memory sell = _createAndSignOrderWithFee(carlaPK, yes, Q, N, R_BPS, Side.SELL);
+
+        Order[] memory makers = new Order[](1);
+        makers[0] = sell;
+        FeeFill[] memory makerFills = new FeeFill[](1);
+        makerFills[0] = FeeFill({ q: Q, pi: PI, f: F });
+
+        uint256 bobColBefore = usdc.balanceOf(bob);
+        uint256 bobYesBefore = getCTFBalance(bob, yes);
+        uint256 feeRecipientColBefore = usdc.balanceOf(feeRecipient);
+
+        vm.prank(admin);
+        exchange.matchOrdersWithFees(buy, makers, FeeFill({ q: Q, pi: PI, f: F }), makerFills);
+
+        assertEq(usdc.balanceOf(bob), bobColBefore - (N + F));
+        assertEq(getCTFBalance(bob, yes), bobYesBefore + Q);
+        assertEq(usdc.balanceOf(feeRecipient), feeRecipientColBefore + 2 * F);
+
+        bytes32 buyHash = exchange.hashOrder(buy);
+        assertEq(exchange.getOrderFillStateV11(buyHash).BUsed, N);
+        assertEq(exchange.getOrderFillStateV11(buyHash).delivered, Q);
+        assertTrue(exchange.getOrderFillStateV11(buyHash).isFilledOrCancelled);
+        assertEq(exchange.getOrderStatus(buyHash).remaining, 0);
+    }
+
+    function testBuyCompletesWhenSharesDeliveredBelowLimit() public {
+        uint256 limitN = 40_000_000;
+        uint256 fillPi = 3e17;
+        uint256 fillN = 30_000_000;
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, limitN, Q, 0, Side.BUY);
+        Order memory sell = _createAndSignOrderWithFee(carlaPK, yes, Q, fillN, 0, Side.SELL);
+
+        Order[] memory makers = new Order[](1);
+        makers[0] = sell;
+        FeeFill[] memory makerFills = new FeeFill[](1);
+        makerFills[0] = FeeFill({ q: Q, pi: fillPi, f: 0 });
+
+        vm.prank(admin);
+        exchange.matchOrdersWithFees(buy, makers, FeeFill({ q: Q, pi: fillPi, f: 0 }), makerFills);
+
+        bytes32 buyHash = exchange.hashOrder(buy);
+        assertEq(exchange.getOrderFillStateV11(buyHash).BUsed, fillN);
+        assertLt(exchange.getOrderFillStateV11(buyHash).BUsed, limitN);
+        assertEq(exchange.getOrderFillStateV11(buyHash).delivered, Q);
+        assertTrue(exchange.getOrderFillStateV11(buyHash).isFilledOrCancelled);
+        assertEq(exchange.getOrderStatus(buyHash).remaining, 0);
+    }
+
+    function testBuyShareOverfillReverts() public {
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, N, Q, 0, Side.BUY);
+        Order memory sell = _createAndSignOrderWithFee(carlaPK, yes, Q + 1, N, 0, Side.SELL);
+        Order[] memory makers = new Order[](1);
+        makers[0] = sell;
+        FeeFill[] memory makerFills = new FeeFill[](1);
+        makerFills[0] = FeeFill({ q: Q + 1, pi: PI, f: 0 });
+
+        vm.prank(admin);
+        vm.expectRevert(ShareOverfill.selector);
+        exchange.matchOrdersWithFees(buy, makers, FeeFill({ q: Q + 1, pi: PI, f: 0 }), makerFills);
     }
 
     function _resignWithSalt(Order memory order, uint256 pk, uint256 salt) internal returns (Order memory) {

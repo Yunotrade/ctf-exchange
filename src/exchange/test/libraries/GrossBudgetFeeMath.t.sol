@@ -84,7 +84,7 @@ contract GrossBudgetFeeMathTest is Test {
                 f: f,
                 feeRateBps: r,
                 S: S,
-                M: n + f,
+                M: n,
                 T: q,
                 BUsed: 0,
                 delivered: 0,
@@ -95,6 +95,35 @@ contract GrossBudgetFeeMathTest is Test {
         assertEq(res.settlement, n + f);
         assertEq(res.dCap, f);
         assertEq(res.HAfter, hk);
+    }
+
+    function testBuyNotionalBudgetAllowsFeeOnTop() public {
+        // Distinct from at-cap: signed ceiling 1000 bps, charged 30 bps, M still equals N.
+        uint256 q = 100_000_000;
+        uint256 pi = 4e17;
+        uint256 rSigned = 1000;
+        uint256 rActual = 30;
+        uint256 n = GrossBudgetFeeMath.executionCollateral(q, pi, S);
+        uint256 hk = GrossBudgetFeeMath.feeBasisNumerator(q, pi, S);
+        uint256 f = GrossBudgetFeeMath.cumulativeCap(hk, rActual, S);
+        assertEq(f, 120_000);
+        GrossBudgetFeeMath.FillResult memory res = GrossBudgetFeeMath.validateBuyFill(
+            GrossBudgetFeeMath.BuyFillInput({
+                q: q,
+                pi: pi,
+                f: f,
+                feeRateBps: rSigned,
+                S: S,
+                M: n,
+                T: q,
+                BUsed: 0,
+                delivered: 0,
+                HPrev: 0
+            })
+        );
+        assertEq(res.notional, n);
+        assertEq(res.settlement, n + f);
+        assertGt(res.dCap, f);
     }
 
     function testBuyFeeAboveCapReverts() public {
@@ -143,7 +172,7 @@ contract GrossBudgetFeeMathTest is Test {
     }
 
     function testBuyMinOutReverts() public {
-        // Signed all-in 0.40; fill at 0.50 so MinOut fails.
+        // Signed notional 0.40; fill at 0.50 so MinOut fails.
         vm.expectRevert(bytes("MinOutFailed"));
         harness.validateBuy(
             GrossBudgetFeeMath.BuyFillInput({
