@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "bet-slip-fee-separation-1",
+  "S": "1000000000000000000",
+  "shareDecimals": 6,
+  "collateralDecimals": 6,
+  "feeDenom": 10000,
+  "meaning": {
+    "BUY_M": "fee-exclusive notional N",
+    "BUY_BUsed": "cumulative notional",
+    "BUY_settlement": "N + f pulled from Safe",
+    "BUY_complete": "delivered == T",
+    "SELL": "no semantic change; credit P - f"
+  },
+  "vectors": [
+    {
+      "id": "comp-40c-at-cap",
+      "notes": "Inverts GrossBudgetFeeMath.t.sol testBuyFillAtCapSucceeds and MatchOrdersWithFees N+F. SELL unchanged.",
+      "q": "100000000",
+      "pi": "400000000000000000",
+      "rSigned": 1000,
+      "f": "4000000",
+      "N": "40000000",
+      "BUY": {
+        "signedM": "40000000",
+        "signedT": "100000000",
+        "pull": "44000000",
+        "BUsedAfter": "40000000",
+        "deliveredAfter": "100000000"
+      },
+      "SELL": {
+        "semanticChange": false,
+        "signedM": "100000000",
+        "signedT": "40000000",
+        "credit": "36000000",
+        "PUsedAfter": "40000000"
+      }
+    },
+    {
+      "id": "comp-40c-actual-30bps",
+      "q": "100000000",
+      "pi": "400000000000000000",
+      "rSigned": 1000,
+      "f": "120000",
+      "N": "40000000",
+      "BUY": { "signedM": "40000000", "pull": "40120000", "BUsedAfter": "40000000" },
+      "SELL": { "semanticChange": false, "credit": "39880000" }
+    },
+    {
+      "id": "comp-40c-zero-fee",
+      "q": "100000000",
+      "pi": "400000000000000000",
+      "rSigned": 1000,
+      "f": "0",
+      "N": "40000000",
+      "BUY": { "signedM": "40000000", "pull": "40000000", "BUsedAfter": "40000000" },
+      "SELL": { "semanticChange": false, "credit": "40000000" }
+    },
+    {
+      "id": "buy-20c-100-shares-cap-100bps",
+      "notes": "Book price must stay 0.20; v1.1 all-in 20200000/100000000 rests at 0.19.",
+      "q": "100000000",
+      "pi": "200000000000000000",
+      "rSigned": 100,
+      "f": "200000",
+      "N": "20000000",
+      "BUY": {
+        "signedM": "20000000",
+        "signedT": "100000000",
+        "price": "0.20",
+        "pull": "20200000",
+        "BUsedAfter": "20000000"
+      }
+    },
+    {
+      "id": "dollar-5-at-50c-1000bps",
+      "q": "10000000",
+      "pi": "500000000000000000",
+      "rSigned": 1000,
+      "f": "500000",
+      "N": "5000000",
+      "BUY": { "signedM": "5000000", "pull": "5500000" }
+    },
+    {
+      "id": "partial-two-fill-40c-1000bps",
+      "signedM": "40000000",
+      "signedT": "100000000",
+      "fills": [
+        {
+          "q": "40000000",
+          "N": "16000000",
+          "f": "1600000",
+          "BUsedAfter": "16000000",
+          "deliveredAfter": "40000000",
+          "complete": false
+        },
+        {
+          "q": "60000000",
+          "N": "24000000",
+          "f": "2400000",
+          "BUsedAfter": "40000000",
+          "deliveredAfter": "100000000",
+          "complete": true
+        }
+      ]
+    },
+    {
+      "id": "mint-complement-conservation",
+      "q": "100000000",
+      "Nyes": "40000000",
+      "Nno": "60000000",
+      "mintCollateral": "100000000",
+      "notes": "Each BUY still pulls N+f; mint identity is Nyes+Nno=q without fees."
+    }
+  ]
+}
