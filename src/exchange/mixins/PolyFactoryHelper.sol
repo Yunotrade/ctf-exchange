@@ -10,7 +10,6 @@ interface IPolyProxyFactory {
 
 interface IPolySafeFactory {
     function masterCopy() external view returns (address);
-    function getContractBytecode() external view returns (bytes memory);
 }
 
 abstract contract PolyFactoryHelper {
@@ -57,7 +56,7 @@ abstract contract PolyFactoryHelper {
     /// @notice Gets the Polymarket Gnosis Safe address for an address
     /// @param _addr    - The address that owns the proxy wallet
     function getSafeAddress(address _addr) public view returns (address) {
-        return PolySafeLib.getSafeAddress(_addr, safeFactory);
+        return PolySafeLib.getSafeAddress(_addr, getSafeFactoryImplementation(), safeFactory);
     }
 
     function _setProxyFactory(address _proxyFactory) internal {
