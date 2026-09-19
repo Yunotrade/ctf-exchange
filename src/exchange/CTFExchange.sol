@@ -14,7 +14,7 @@ import { AssetOperations } from "./mixins/AssetOperations.sol";
 
 import { BaseExchange } from "./BaseExchange.sol";
 
-import { Order, FeeFill } from "./libraries/OrderStructs.sol";
+import { Order } from "./libraries/OrderStructs.sol";
 
 /// @title CTF Exchange
 /// @notice Implements logic for trading CTF assets
@@ -32,13 +32,6 @@ contract CTFExchange is
     Signatures,
     Trading
 {
-    bool public v11Only;
-
-    modifier legacyTradingAllowed() {
-        if (v11Only) revert LegacyTradingDisabled();
-        _;
-    }
-
     constructor(address _collateral, address _ctf, address _proxyFactory, address _safeFactory)
         Assets(_collateral, _ctf)
         Signatures(_proxyFactory, _safeFactory)
@@ -65,13 +58,7 @@ contract CTFExchange is
     /// @notice Fills an order
     /// @param order        - The order to be filled
     /// @param fillAmount   - The amount to be filled, always in terms of the maker amount
-    function fillOrder(Order memory order, uint256 fillAmount)
-        external
-        nonReentrant
-        onlyOperator
-        notPaused
-        legacyTradingAllowed
-    {
+    function fillOrder(Order memory order, uint256 fillAmount) external nonReentrant onlyOperator notPaused {
         _fillOrder(order, fillAmount, msg.sender);
     }
 
@@ -83,7 +70,6 @@ contract CTFExchange is
         nonReentrant
         onlyOperator
         notPaused
-        legacyTradingAllowed
     {
         _fillOrders(orders, fillAmounts, msg.sender);
     }
@@ -98,19 +84,8 @@ contract CTFExchange is
         Order[] memory makerOrders,
         uint256 takerFillAmount,
         uint256[] memory makerFillAmounts
-    ) external nonReentrant onlyOperator notPaused legacyTradingAllowed {
-        _matchOrders(takerOrder, makerOrders, takerFillAmount, makerFillAmounts);
-    }
-
-    /// @notice Matches orders with explicit share quantity, execution price, and actual fee (v1.1.0)
-    /// @dev Collateral-only fees; fee f is operator-supplied within DeltaCap. Legacy matchOrders unchanged.
-    function matchOrdersWithFees(
-        Order memory takerOrder,
-        Order[] memory makerOrders,
-        FeeFill memory takerFill,
-        FeeFill[] memory makerFills
     ) external nonReentrant onlyOperator notPaused {
-        _matchOrdersWithFees(takerOrder, makerOrders, takerFill, makerFills);
+        _matchOrders(takerOrder, makerOrders, takerFillAmount, makerFillAmounts);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -127,17 +102,6 @@ contract CTFExchange is
     /// @param _newSafeFactory  - The new Safe wallet factory
     function setSafeFactory(address _newSafeFactory) external onlyAdmin {
         _setSafeFactory(_newSafeFactory);
-    }
-
-    function setFeeRecipient(address recipient) external onlyAdmin {
-        _setFeeRecipient(recipient);
-    }
-
-    function enableV11Only() external onlyAdmin {
-        if (!v11Only) {
-            v11Only = true;
-            emit V11OnlyEnabled();
-        }
     }
 
     /// @notice Registers a tokenId, its complement and its conditionId for trading on the Exchange

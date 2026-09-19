@@ -7,21 +7,8 @@ abstract contract Fees is IFees {
     /// @notice Maximum fee rate that can be signed into an Order
     uint256 internal constant MAX_FEE_RATE_BIPS = 1000; // 1000 bips or 10%
 
-    address private feeRecipient;
-
     /// @notice Returns the maximum fee rate for an order
     function getMaxFeeRate() public pure override returns (uint256) {
         return MAX_FEE_RATE_BIPS;
-    }
-
-    function getFeeRecipient() public view override returns (address) {
-        return feeRecipient;
-    }
-
-    function _setFeeRecipient(address recipient) internal {
-        if (feeRecipient != address(0)) revert FeeRecipientAlreadySet();
-        if (recipient == address(0)) revert InvalidFeeRecipient();
-        feeRecipient = recipient;
-        emit FeeRecipientSet(recipient);
     }
 }
