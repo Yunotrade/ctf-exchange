@@ -381,7 +381,8 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
     }
 
     /// @notice Matches orders with explicit (q, pi, f) actual-fee fills (v1.1.0)
-    /// @dev BUY makerAmount is fee-exclusive notional; transfer is still N+f. SELL is P-f. Legacy matchOrders unchanged.
+    /// @dev BUY makerAmount is fee-exclusive notional; transfer is still N+f. SELL is P-f. Legacy matchOrders
+    /// unchanged.
     function _matchOrdersWithFees(
         Order memory takerOrder,
         Order[] memory makerOrders,
@@ -395,12 +396,11 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
         bytes32 takerHash = hashOrder(takerOrder);
         _validateOrder(takerHash, takerOrder);
 
-        _validateMakerOrdersWithFees(takerHash, takerOrder, takerFill, makerOrders, makerFills);
+        uint256 takerNotional = _validateMakerOrdersWithFees(takerHash, takerOrder, takerFill, makerOrders, makerFills);
 
         address feeRecipient = getFeeRecipient();
         if (feeRecipient == address(0)) revert InvalidFeeRecipient();
 
-        uint256 takerNotional = GrossBudgetFeeMath.executionCollateral(takerFill.q, takerFill.pi, 10 ** 18);
         uint256 takerSettlement;
         if (takerOrder.side == Side.BUY) {
             (, takerSettlement) = _applyBuyFillV11(takerHash, takerOrder, takerFill, takerNotional);
@@ -422,7 +422,7 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
         FeeFill memory takerFill,
         Order[] memory makerOrders,
         FeeFill[] memory makerFills
-    ) internal view {
+    ) internal view returns (uint256 takerNotional) {
         uint256 totalMakerQuantity;
         uint256 length = makerOrders.length;
         bytes32[] memory makerHashes = new bytes32[](length);
@@ -441,6 +441,7 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
             _validateTakerAndMaker(takerOrder, makerOrders[i], matchType);
             if (takerFill.pi != makerFills[i].pi) revert MismatchedFillPrice();
 
+            takerNotional += _takerSliceNotional(matchType, makerFills[i], totalMakerQuantity);
             totalMakerQuantity += makerFills[i].q;
             _validateOrder(makerHash, makerOrders[i]);
 
@@ -458,23 +459,32 @@ abstract contract Trading is IFees, ITrading, IHashing, IRegistry, ISignatures, 
         FeeFill[] memory makerFills
     ) internal returns (uint256 makerFees) {
         uint256 quantityBefore;
-        uint256 notionalBefore;
         uint256 length = makerOrders.length;
         for (uint256 i = 0; i < length;) {
-            uint256 quantityAfter = quantityBefore + makerFills[i].q;
-            uint256 notionalAfter = GrossBudgetFeeMath.executionCollateral(quantityAfter, takerFill.pi, 10 ** 18);
-
-            _fillMakerOrderWithFees(
-                takerOrder, takerFill, makerOrders[i], makerFills[i], notionalAfter - notionalBefore
-            );
+            uint256 takerSliceNotional =
+                _takerSliceNotional(_deriveMatchType(takerOrder, makerOrders[i]), makerFills[i], quantityBefore);
+            _fillMakerOrderWithFees(takerOrder, takerFill, makerOrders[i], makerFills[i], takerSliceNotional);
 
             makerFees += makerFills[i].f;
-            quantityBefore = quantityAfter;
-            notionalBefore = notionalAfter;
+            quantityBefore += makerFills[i].q;
             unchecked {
                 ++i;
             }
         }
+    }
+
+    function _takerSliceNotional(MatchType matchType, FeeFill memory fill, uint256 quantityBefore)
+        internal
+        pure
+        returns (uint256)
+    {
+        // Each CLOB maker receives ceil proceeds; summing these slices also funds mixed batches exactly.
+        if (matchType == MatchType.COMPLEMENTARY) {
+            return GrossBudgetFeeMath.executionCollateralCeil(fill.q, fill.pi, 10 ** 18);
+        }
+        // Preserve the cumulative floor split for MINT/MERGE; the other leg receives the remainder.
+        return GrossBudgetFeeMath.executionCollateral(quantityBefore + fill.q, fill.pi, 10 ** 18)
+            - GrossBudgetFeeMath.executionCollateral(quantityBefore, fill.pi, 10 ** 18);
     }
 
     function _fillMakerOrderWithFees(

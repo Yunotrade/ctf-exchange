@@ -15,6 +15,14 @@ contract GrossBudgetFeeMathHarness {
         return GrossBudgetFeeMath.validateBuyFill(i);
     }
 
+    function validateSellWithNotional(GrossBudgetFeeMath.SellFillInput memory i, uint256 notional)
+        external
+        pure
+        returns (GrossBudgetFeeMath.FillResult memory)
+    {
+        return GrossBudgetFeeMath.validateSellFillWithNotional(i, notional);
+    }
+
     function validateSell(GrossBudgetFeeMath.SellFillInput memory i)
         external
         pure
@@ -36,6 +44,35 @@ contract GrossBudgetFeeMathTest is Test {
         uint256 q = 100_000_000;
         uint256 pi = 4e17;
         assertEq(GrossBudgetFeeMath.executionCollateral(q, pi, S), 40_000_000);
+    }
+
+    function testExecutionCollateralCeil() public {
+        assertEq(GrossBudgetFeeMath.executionCollateralCeil(1_886_792, 53e16, S), 1_000_000);
+        assertEq(GrossBudgetFeeMath.executionCollateral(1_886_792, 53e16, S), 999_999);
+        assertEq(GrossBudgetFeeMath.executionCollateralCeil(9_259_259, 54e16, S), 5_000_000);
+        assertEq(GrossBudgetFeeMath.executionCollateral(9_259_259, 54e16, S), 4_999_999);
+        assertEq(GrossBudgetFeeMath.executionCollateralCeil(100_000_000, 4e17, S), 40_000_000);
+        assertEq(GrossBudgetFeeMath.executionCollateralCeil(0, 53e16, S), 0);
+    }
+
+    function testFloorNotionalCannotSettleCanonicalSell() public {
+        GrossBudgetFeeMath.SellFillInput memory sell = GrossBudgetFeeMath.SellFillInput({
+            q: 1_886_792,
+            pi: 53e16,
+            f: 0,
+            feeRateBps: 0,
+            S: S,
+            M: 100_000_000,
+            T: 53_000_000,
+            filledShares: 0,
+            PUsed: 0,
+            HPrev: 0
+        });
+        vm.expectRevert(bytes("GrossProceedsFloor"));
+        harness.validateSellWithNotional(sell, GrossBudgetFeeMath.executionCollateral(sell.q, sell.pi, S));
+        GrossBudgetFeeMath.FillResult memory result =
+            harness.validateSellWithNotional(sell, GrossBudgetFeeMath.executionCollateralCeil(sell.q, sell.pi, S));
+        assertEq(result.notional, 1_000_000);
     }
 
     function testComplementSumsToQ(uint64 qRaw, uint128 piRaw) public {
