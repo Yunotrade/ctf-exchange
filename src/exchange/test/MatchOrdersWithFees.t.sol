@@ -79,6 +79,101 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
         assertTrue(exchange.getOrderFillStateV11(buyHash).isFilledOrCancelled);
     }
 
+    function testComplementaryOneDollarAt53Cents() public {
+        _assertExactDollarComplementary(1_000_000, 1_886_792, 53e16, false);
+    }
+
+    function testComplementaryFiveDollarsAt54Cents() public {
+        _assertExactDollarComplementary(5_000_000, 9_259_259, 54e16, false);
+    }
+
+    function testComplementarySellTakerUsesCeil() public {
+        _assertExactDollarComplementary(1_000_000, 1_886_792, 53e16, true);
+    }
+
+    function _assertExactDollarComplementary(uint256 budget, uint256 q, uint256 pi, bool sellTaker) internal {
+        uint256 fee = q * (S - pi) * R_BPS / (S * 10_000);
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, budget, q, R_BPS, Side.BUY);
+        Order memory sell = _createAndSignOrderWithFee(carlaPK, yes, Q, Q * pi / S, R_BPS, Side.SELL);
+        Order[] memory makers = new Order[](1);
+        makers[0] = sellTaker ? buy : sell;
+        FeeFill[] memory makerFills = new FeeFill[](1);
+        makerFills[0] = FeeFill({ q: q, pi: pi, f: fee });
+        uint256 bobColBefore = usdc.balanceOf(bob);
+        uint256 carlaColBefore = usdc.balanceOf(carla);
+        uint256 bobYesBefore = getCTFBalance(bob, yes);
+        uint256 carlaYesBefore = getCTFBalance(carla, yes);
+
+        vm.prank(admin);
+        exchange.matchOrdersWithFees(sellTaker ? sell : buy, makers, makerFills[0], makerFills);
+
+        assertEq(usdc.balanceOf(bob), bobColBefore - budget - fee);
+        assertEq(usdc.balanceOf(carla), carlaColBefore + budget - fee);
+        assertEq(getCTFBalance(bob, yes), bobYesBefore + q);
+        assertEq(getCTFBalance(carla, yes), carlaYesBefore - q);
+        assertEq(exchange.getOrderFillStateV11(exchange.hashOrder(buy)).BUsed, budget);
+        assertEq(exchange.getOrderFillStateV11(exchange.hashOrder(sell)).BUsed, budget);
+        assertEq(exchange.getOrderFillStateV11(exchange.hashOrder(buy)).delivered, q);
+        assertEq(budget, q * pi / S + 1);
+        assertEq(usdc.balanceOf(feeRecipient), 2 * fee);
+        assertEq(usdc.balanceOf(address(exchange)), 0);
+    }
+
+    function testMultiMakerComplementaryCeilsEachSlice() public {
+        uint256 q = 1_886_792;
+        uint256 pi = 53e16;
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, 2_000_000, 2 * q, 0, Side.BUY);
+        Order[] memory makers = new Order[](2);
+        makers[0] = _createAndSignOrderWithFee(carlaPK, yes, Q, 53_000_000, 0, Side.SELL);
+        makers[1] = _resignWithSalt(_createAndSignOrderWithFee(carlaPK, yes, Q, 53_000_000, 0, Side.SELL), carlaPK, 2);
+        FeeFill[] memory makerFills = new FeeFill[](2);
+        makerFills[0] = FeeFill({ q: q, pi: pi, f: 0 });
+        makerFills[1] = makerFills[0];
+        uint256 before = usdc.balanceOf(carla);
+
+        vm.prank(admin);
+        exchange.matchOrdersWithFees(buy, makers, FeeFill({ q: 2 * q, pi: pi, f: 0 }), makerFills);
+
+        assertEq(exchange.getOrderFillStateV11(exchange.hashOrder(buy)).BUsed, 2_000_000);
+        assertEq(exchange.getOrderFillStateV11(exchange.hashOrder(makers[0])).BUsed, 1_000_000);
+        assertEq(exchange.getOrderFillStateV11(exchange.hashOrder(makers[1])).BUsed, 1_000_000);
+        assertEq(usdc.balanceOf(carla), before + 2_000_000);
+        assertEq(usdc.balanceOf(address(exchange)), 0);
+    }
+
+    function testComplementaryGenuinelyBelowSellFloorReverts() public {
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, 1_000_000, 1_886_792, 0, Side.BUY);
+        Order[] memory makers = new Order[](1);
+        makers[0] = _createAndSignOrderWithFee(carlaPK, yes, Q, 53_000_000, 0, Side.SELL);
+        FeeFill[] memory fills = new FeeFill[](1);
+        fills[0] = FeeFill({ q: 1_886_792, pi: 52e16, f: 0 });
+        vm.prank(admin);
+        vm.expectRevert(bytes("GrossProceedsFloor"));
+        exchange.matchOrdersWithFees(buy, makers, fills[0], fills);
+    }
+
+    function testMintFractionalNotionalKeepsFloorAndRemainder() public {
+        uint256 q = 1_886_792;
+        uint256 floor = 999_999;
+        Order memory buy = _createAndSignOrderWithFee(bobPK, yes, floor + 1, q, 0, Side.BUY);
+        Order[] memory makers = new Order[](1);
+        makers[0] = _createAndSignOrderWithFee(carlaPK, no, q - floor, q, 0, Side.BUY);
+        FeeFill[] memory fills = new FeeFill[](1);
+        fills[0] = FeeFill({ q: q, pi: 53e16, f: 0 });
+        uint256 bobBefore = usdc.balanceOf(bob);
+        uint256 carlaBefore = usdc.balanceOf(carla);
+
+        vm.prank(admin);
+        exchange.matchOrdersWithFees(buy, makers, fills[0], fills);
+
+        assertEq(exchange.getOrderFillStateV11(exchange.hashOrder(buy)).BUsed, floor);
+        assertEq(exchange.getOrderFillStateV11(exchange.hashOrder(makers[0])).BUsed, q - floor);
+        assertEq(bobBefore - usdc.balanceOf(bob), floor);
+        assertEq(carlaBefore - usdc.balanceOf(carla), q - floor);
+        assertEq(bobBefore + carlaBefore - usdc.balanceOf(bob) - usdc.balanceOf(carla), q);
+        assertEq(usdc.balanceOf(address(exchange)), 0);
+    }
+
     function testMultiMakerComplementarySuccess() public {
         uint256 makerQ = Q / 2;
         uint256 makerN = N / 2;

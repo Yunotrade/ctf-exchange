@@ -50,6 +50,11 @@ library GrossBudgetFeeMath {
         return (q * pi) / S;
     }
 
+    function executionCollateralCeil(uint256 q, uint256 pi, uint256 S) internal pure returns (uint256) {
+        if (S == 0) revert InvalidScale();
+        return (q * pi + S - 1) / S;
+    }
+
     function feeBasisNumerator(uint256 q, uint256 pi, uint256 S) internal pure returns (uint256) {
         if (pi == 0 || pi >= S) revert InvalidPrice();
         uint256 oneMinus = S - pi;
