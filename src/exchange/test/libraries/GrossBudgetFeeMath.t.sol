@@ -40,6 +40,31 @@ contract GrossBudgetFeeMathTest is Test {
         harness = new GrossBudgetFeeMathHarness();
     }
 
+    function testParabolaSecondSliceFitsCap() public {
+        GrossBudgetFeeMath.BuyFillInput memory i = GrossBudgetFeeMath.BuyFillInput({
+            q: 400, pi: 4e17, f: 0, feeRateBps: 100, S: S,
+            M: 168, T: 420, BUsed: 0, delivered: 0, HPrev: 0
+        });
+        GrossBudgetFeeMath.FillResult memory first = harness.validateBuy(i);
+        assertEq(first.dCap, 0);
+        i.q = 20;
+        i.f = 1;
+        i.HPrev = first.HAfter;
+        i.BUsed = first.notional;
+        i.delivered = 400;
+        GrossBudgetFeeMath.FillResult memory second = harness.validateBuy(i);
+        assertEq(second.dCap, 1);
+        assertEq(second.settlement, 9);
+    }
+
+    function testOneAtomAboveParabolaCapReverts() public {
+        vm.expectRevert(bytes("FeeAboveCap"));
+        harness.validateBuy(GrossBudgetFeeMath.BuyFillInput({
+            q: 100_000_000, pi: 4e17, f: 240_001, feeRateBps: 100, S: S,
+            M: 40_000_000, T: 100_000_000, BUsed: 0, delivered: 0, HPrev: 0
+        }));
+    }
+
     function testExecutionCollateralAtFortyCents() public {
         uint256 q = 100_000_000;
         uint256 pi = 4e17;
@@ -131,6 +156,7 @@ contract GrossBudgetFeeMathTest is Test {
         assertEq(res.notional, n);
         assertEq(res.settlement, n + f);
         assertEq(res.dCap, f);
+        assertEq(f, 2_400_000);
         assertEq(res.HAfter, hk);
     }
 
@@ -143,7 +169,7 @@ contract GrossBudgetFeeMathTest is Test {
         uint256 n = GrossBudgetFeeMath.executionCollateral(q, pi, S);
         uint256 hk = GrossBudgetFeeMath.feeBasisNumerator(q, pi, S);
         uint256 f = GrossBudgetFeeMath.cumulativeCap(hk, rActual, S);
-        assertEq(f, 120_000);
+        assertEq(f, 72_000);
         GrossBudgetFeeMath.FillResult memory res = GrossBudgetFeeMath.validateBuyFill(
             GrossBudgetFeeMath.BuyFillInput({
                 q: q,
@@ -253,12 +279,12 @@ contract GrossBudgetFeeMathTest is Test {
     }
 
     function testSellFeeAboveProceedsReverts() public {
-        // With r=10000, Cap can exceed P by 1 across a floor boundary; f=P+1 hits FeeAboveProceeds.
-        uint256 q = 2 * S + 1;
+        // The cumulative cap crosses a floor boundary while the current proceeds floor to two atoms.
+        uint256 q = 2 * S + S / 2;
         uint256 pi = 1;
         uint256 P = GrossBudgetFeeMath.executionCollateral(q, pi, S);
         assertEq(P, 2);
-        uint256 HPrev = S - 1;
+        uint256 HPrev = GrossBudgetFeeMath.feeBasisNumerator(3 * S / 4, pi, S);
         uint256 hk = GrossBudgetFeeMath.feeBasisNumerator(q, pi, S);
         uint256 dCap = GrossBudgetFeeMath.deltaCap(HPrev, HPrev + hk, 10_000, S);
         assertGe(dCap, P + 1);

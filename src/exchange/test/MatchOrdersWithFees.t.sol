@@ -12,7 +12,7 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
     uint256 internal constant S = 1e18;
     uint256 internal constant Q = 100_000_000;
     uint256 internal constant PI = 4e17;
-    uint256 internal constant F = 4_000_000;
+    uint256 internal constant F = 2_400_000;
     uint256 internal constant N = 40_000_000;
     uint256 internal constant R_BPS = 1000;
     address internal feeRecipient = address(0xFEE);
@@ -92,7 +92,7 @@ contract MatchOrdersWithFeesTest is BaseExchangeTest {
     }
 
     function _assertExactDollarComplementary(uint256 budget, uint256 q, uint256 pi, bool sellTaker) internal {
-        uint256 fee = q * (S - pi) * R_BPS / (S * 10_000);
+        uint256 fee = q * pi * (S - pi) * R_BPS / (S * S * 10_000);
         Order memory buy = _createAndSignOrderWithFee(bobPK, yes, budget, q, R_BPS, Side.BUY);
         Order memory sell = _createAndSignOrderWithFee(carlaPK, yes, Q, Q * pi / S, R_BPS, Side.SELL);
         Order[] memory makers = new Order[](1);
