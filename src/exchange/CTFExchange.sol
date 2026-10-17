@@ -113,6 +113,25 @@ contract CTFExchange is
         _matchOrdersWithFees(takerOrder, makerOrders, takerFill, makerFills);
     }
 
+    /// @notice Settles several execution groups of one taker order in one transaction.
+    /// @dev Each group is an existing `_matchOrdersWithFees` call. `quantityBefore` starts at 0 inside
+    /// every group. Fill state in storage carries across groups. A revert in a later group rolls the transaction back.
+    function matchOrdersWithFeesBatch(
+        Order memory takerOrder,
+        Order[][] memory makerOrders,
+        FeeFill[] memory takerFills,
+        FeeFill[][] memory makerFills
+    ) external nonReentrant onlyOperator notPaused {
+        uint256 groups = makerOrders.length;
+        if (groups == 0 || groups != takerFills.length || groups != makerFills.length) revert LengthMismatch();
+        for (uint256 i = 0; i < groups;) {
+            _matchOrdersWithFees(takerOrder, makerOrders[i], takerFills[i], makerFills[i]);
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
     /*//////////////////////////////////////////////////////////////
                         CONFIGURATION
     //////////////////////////////////////////////////////////////*/
